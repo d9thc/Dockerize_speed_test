@@ -1,0 +1,85 @@
+version: '3.3'
+
+networks:
+  front:
+  lognet:
+    external: true
+
+services:
+  traefik:
+    image: "traefik:v2.1"
+#    container_name: "traefik"
+    restart: unless-stopped
+    command:
+      #- "--log.level=DEBUG"
+      #- "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:8080"
+    ports:
+#      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      front:
+      lognet:
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: traefik_log
+
+
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+#    container_name: "nginx"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nginx.rule=Host(`your.domain.com`)"
+      - "traefik.http.routers.nginx.entrypoints=web"
+#    ports:
+#      - "8080:80"
+    volumes:
+      - ./nginx/core:/etc/nginx/conf.d
+      - ./nginx/logs:/var/log/nginx/
+      - ./nginx/www:/var/www/html
+    networks:
+      front:
+      lognet:
+    depends_on:
+      - speedtest
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: nginx_log
+
+  speedtest:
+    build:
+      context: .
+      dockerfile: Dockerfile_fin
+#    container_name: "speedtest"
+    restart: always
+    environment:
+      - TITLE=LibreSpeed_on_PHP-FPM
+      - MODE=frontend
+      - PASSWORD=password
+      - TELEMETRY=true
+      - ENABLE_ID_OBFUSCATION=true
+      - REDACT_IP_ADDRESSES=false
+    volumes:
+      - ./database:/database
+      - ./nginx/www:/var/www/html
+      - ./docker/servers.json:/servers.json:ro
+    networks:
+      front:
+        aliases:
+          - php
+      lognet:
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: speedtest_log

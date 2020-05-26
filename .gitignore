@@ -1,0 +1,6 @@
+final.json
+database/*.sql
+nginx/logs/
+nginx/www/
+traefik/letsencrypt/
+traefik/users_credentials

@@ -1,0 +1,57 @@
+version: "3.3"
+
+services:
+
+  traefik:
+    image: "traefik:v2.1"
+    container_name: "traefik"
+    restart: always
+    command:
+      #- "--log.level=DEBUG"
+      - "--api=true"
+      - "--api.dashboard=true"
+      #- "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      #- "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      #- "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.myresolver.acme.email=your@email.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    labels:
+      - "traefik.enable=true"
+      # Dashboard
+      - "traefik.http.routers.traefik.rule=Host(`your.domain.com`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.tls.certresolver=myresolver"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      # basic auth
+      - "traefik.http.routers.whoami.middlewares=auth-middleware"
+      - "traefik.http.middlewares.auth-middleware.basicauth.usersfile=/users_credentials"
+      #- "traefik.http.middlewares.auth-middleware.basicauth.users=admin:{SHA}+5ZUljHINesjnNYUzGtct9KVEho="
+      # global redirect to https
+      - "traefik.http.routers.redirect-https.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.redirect-https.entrypoints=web"
+      - "traefik.http.routers.redirect-https.middlewares=redirect-to-https"
+      # middleware redirect
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+    #  - "8080:8080"
+    volumes:
+      - "./users_credentials:/users_credentials:ro"
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  whoami:
+    image: "containous/whoami"
+    container_name: "simple-service"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`your.domain.com`) && Path(`/app`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls.certresolver=myresolver"
